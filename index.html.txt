@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق كاميرا مع الذكاء الاصطناعي</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        video {
+            width: 320px;
+            height: 240px;
+            border: 1px solid #ccc;
+            background-color: #000;
+        }
+        #output {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>الكاميرا مع الذكاء الاصطناعي</h1>
+    <video id="camera" autoplay playsinline></video>
+    <div id="output">الناتج هنا...</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.10.0/dist/tf.min.js"></script>
+    <script>
+        const cameraElement = document.getElementById('camera');
+        const outputElement = document.getElementById('output');
+
+        let model;
+
+        async function init() {
+            // تحميل نموذج MobileNet v2 متدرب مسبقًا
+            const URL = 'https://tfhub.dev/google/imagenet/mobilenet_v2_100_224/classification/5';
+            model = await tf.loadGraphModel(URL);
+            console.log('نموذج MobileNet تم تحميله بنجاح');
+
+            // إعداد الكاميرا
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    cameraElement.srcObject = stream;
+                    cameraElement.play();
+                })
+                .catch(err => console.error("حدث خطأ أثناء الوصول إلى الكاميرا:", err));
+
+            // بدء التنبؤ المستمر
+            predict();
+        }
+
+        async function predict() {
+            const tensor = tf.browser.fromPixels(cameraElement)
+                .resizeNearestNeighbor([224, 224])
+                .toFloat()
+                .expandDims();
+
+            const predictions = await model.executeAsync(tensor);
+            const topK = await predictions.argMax(-1).data();
+
+            // قائمة الفئات (يمكن استبدالها بقائمة فئات ImageNet)
+            const labels = [
+                "نسر", "قطة", "كلب", "شجرة", "سيارة", "سفينة", "طائر", "زهور", "مبنى", "طعام"
+            ];
+
+            outputElement.textContent = `التنبؤ: ${labels[topK[0]]}`;
+            requestAnimationFrame(predict);
+        }
+
+        init();
+
+        // تسجيل خدمة العامل
+        if ('serviceWorker' في navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => console.log('تم تسجيل خدمة العامل:', registration))
+                    .catch(error => console.error('فشل تسجيل خدمة العامل:', error));
+            });
+        }
+    </script>
+</body>
+</html>
